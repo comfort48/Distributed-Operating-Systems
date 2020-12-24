@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Twitter Clone</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <style>
+    .rowMargin {
+      margin: 0 20px 0 20px;
+    }
+    .authWidth {
+      width: 50%;
+    }
+    .newsfeed-box {
+      border: 2px solid;
+      height: 225px;
+      overflow: auto;
+    }
+    .log-box {
+      height: 100px;
+      width: 50%;
+      overflow: auto;
+    }
+    .query-box {
+      border: 2px solid;
+      height: 100px;
+      overflow: auto;
+    }
+    .outer-header {
+      width: 100%;
+      border-bottom: 1px solid slategrey
+    }
+    .inner {
+      display: inline-block;
+    }
+    #usernameDisplay {
+      margin: 20px;
+      font-weight: bold;
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<script language="javascript" type="text/javascript">
+
+  var wsUri = "ws://localhost:8080/websocket";
+  var output;
+  var username;
+  var regDone = false;
+  var loginDone = false;
+
+  function init()
+  {
+    output = document.getElementById("output");
+    testWebSocket();
+  }
+
+  function testWebSocket()
+  {
+    websocket = new WebSocket(wsUri + "/" + username);
+    websocket.onopen = function(evt) { onOpen(evt) };
+    websocket.onclose = function(evt) { onClose(evt) };
+    websocket.onmessage = function(evt) { onMessage(evt) };
+    websocket.onerror = function(evt) { onError(evt) };
+  }
+
+  function onOpen(evt)
+  {
+    writeToScreen("CONNECTED");
+    doSend("register/" + username);
+  }
+
+  function onClose(evt)
+  {
+    writeToScreen("DISCONNECTED");
+  }
+
+  function onMessage(evt)
+  { 
+    let response = evt.data;
+    console.log(response);
+    if (response.indexOf("Registration successful") != -1 && !regDone) {
+        regDone = true;
+        document.getElementById("registrationDiv").innerHTML = "";
+    }
+
+    if (response.indexOf("Login successful") != -1) {
+        //loginDone = true;
+        document.getElementById("logoutBtn").style.visibility = "visible";
+        document.getElementById("tweetDiv").style.visibility = "visible";
+        document.getElementById("followUserDiv").style.visibility = "visible";
+        document.getElementById("queryDiv").style.visibility = "visible";
+        document.getElementById("usernameDisplay").innerHTML = username;
+        
+        document.getElementById("loginDiv").innerHTML = "";
+    }
+
+    if (response.indexOf("TWEET") != -1) {
+      if(response.indexOf("Login successful") != -1) {
+        if(document.getElementById("newsFeedDiv").innerHTML != "") {
+          document.getElementById("newsFeedDiv").innerHTML = "";
+          let tweetsArr = response.substring(response.indexOf("/") + 1).split("|");
+          tweetsArr.forEach(ele => writeToNewsFeed('<span style="font-weight: bold;font-size: 16px;">'+ele+'</span>'));
+        }
+      } else {
+        writeToNewsFeed('<span style="font-weight: bold;font-size: 16px;">'+evt.data+'</span>');
+      }
+      document.getElementById("reTweetDiv").style.visibility = "visible";
+      
+    }
+
+    if(response.indexOf("QUERY RESULT") != -1) {
+      const str = evt.data;
+      document.getElementById("queryOuter").style.visibility = "visible";
+      const resArr = str.substring(str.indexOf("]") + 1).split("|");
+      resArr.forEach(ele => writeToQueryRes('<span style="font-weight: bold;font-size: 16px;">'+ele+'</span>'));
+      
+    }
+    document.getElementById("logsOuter").style.visibility = "visible";
+    if (response.indexOf("Login successful") != -1 && document.getElementById("output").innerHTML != "") {
+      document.getElementById("output").innerHTML = "";
+      writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
+    } else {
+      writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
+    }
+    
+    
+    
+    //websocket.close();
+  }
+
+  function onError(evt)
+  {
+    writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
+  }
+
+  function doSend(message, type)
+  {
+    writeToScreen("SENT: " + message); 
+    if(type == "tweet") {
+      websocket.send("tweet/" + username + "/" + message);
+    } 
+    if(type == "follow") websocket.send("follow/"+ message + "/" + username);
+    if(type == "retweet") websocket.send("retweet/" + username + "/" + message);
+    if(type == "query") websocket.send("query/" + username + "/" + message);
+    if(message == "logout") websocket.send("logout/" + username + "/" + message);
+    else websocket.send(message);
+  }
+
+  function writeToScreen(message)
+  {
+    var pre = document.createElement("p");
+    pre.style.wordWrap = "break-word";
+    pre.innerHTML = message;
+    output.appendChild(pre);
+  }
+
+  function writeToNewsFeed(message) {
+    document.getElementById("newsFeedOuter").style.visibility = "visible";
+    var newsFeedDiv = document.getElementById("newsFeedDiv");
+    var tweet = document.createElement("p");
+    tweet.style.wordWrap = "break-word";
+    tweet.innerHTML = message;
+    newsFeedDiv.appendChild(tweet);
+  }
+
+  function writeToQueryRes(message) {
+    var queryResDiv = document.getElementById("queryResDiv");
+    var queryRes = document.createElement("p");
+    queryRes.style.wordWrap = "break-word";
+    queryRes.innerHTML = message;
+    queryResDiv.appendChild(queryRes);
+  }
+
+  function regAction() {
+    username = document.getElementById('username').value;
+    init();
+  }
+
+  function tweetAction() {
+    const tweet = document.getElementById('tweet').value;
+    doSend(tweet, "tweet");
+    document.getElementById('tweet').value = "";
+  }
+ 
+  function getFromDiv() {
+    var mainDiv = $('<div><div>')
+    let headerDiv = $('<h3>Login Form</h3>');
+    let formDiv = $('<form id="loginForm" action="/login" method="GET"></form>')
+    let formGrpDiv = $('<div class="form-group"></div>');
+    formGrpDiv.append('<label for="usernameLogin">Username</label>' + '<input type="text" class="form-control authWidth" name="usernameLogin" id="usernameLogin" placeholder="Enter username" required></input>'
+     + '<label for="pwdLogin">password</label>' + '<input type="password" class="form-control authWidth" name="pwdLogin" id="pwdLogin" placeholder="Enter password" required></input>')
+    formDiv.append(formGrpDiv);
+    formDiv.append($('<button type="submit" class="btn btn-primary">Login</button>'));
+    mainDiv.append(headerDiv);
+    mainDiv.append(formDiv);
+    return mainDiv;
+  }
+
+  function logoutUser() {
+    doSend("logout");
+    document.getElementById("logoutBtn").style.visibility = "hidden";
+    document.getElementById("tweetDiv").style.visibility = "hidden";
+    document.getElementById("followUserDiv").style.visibility = "hidden";
+    document.getElementById("queryDiv").style.visibility = "hidden";
+    document.getElementById("usernameDisplay").innerHTML = "";
+    document.getElementById("logsOuter").style.visibility = "hidden";
+    document.getElementById("queryOuter").style.visibility = "hidden";
+    document.getElementById("reTweetDiv").style.visibility = "hidden";
+    document.getElementById("newsFeedOuter").style.visibility = "hidden";
+    $('#loginDiv').append(getFromDiv())
+    document.getElementById("usernameLogin").value = username;
+
+  }
+
+  function followUserAction() {
+    const followUsername = document.getElementById('followUser').value;
+    doSend(followUsername, "follow");
+    document.getElementById('followUser').value = "";
+  }
+
+  function retweetAction() {
+    const reTweetId = document.getElementById('retweet').value;
+    doSend(reTweetId, "retweet");
+    document.getElementById('retweet').value = "";
+  }
+
+  function queryAction() {
+    const query = document.getElementById('query').value;
+    document.getElementById("queryResDiv").innerHTML = "";
+    doSend(query, "query");
+    document.getElementById('query').value = "";
+  }
+  //window.addEventListener("load", init, false);
+
+</script>
+
+<div class="container-fluid">
+  <div class="outer-header">
+    <div class="inner">
+      <h2>Twitter Client</h2>
+    </div>
+    <div class="inner pull-right" style="display:inline-flex">
+      <div id="usernameDisplay"></div>
+      <div style="margin:15px">
+        <button type="submit" id="logoutBtn" class="btn btn-primary" style="visibility: hidden;" onclick="logoutUser()">Logout</button>
+      </div>
+    </div>
+    
+    
+  </div>
+  <br/>
+  <div class="col-md-6">
+    <div id="logsOuter" style="visibility: hidden;">
+      <div id="output" class="log-box"></div>
+    </div>
+
+    <div id="registrationDiv">
+      <h3>Registration Form</h3>
+      <!--Registration form begins-->
+      <form id="regForm" action="/register" onSubmit="regAction()" method="GET">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" class="form-control authWidth" name="username" id="username" placeholder="Enter username" required>
+          <label for="pwd">password</label>
+          <input type="password" class="form-control authWidth" name="pwd" id="pwd" placeholder="Enter password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Register</button>
+      </form>
+    <!--Registration form ends-->
+    </div>
+    
+    <div id="loginDiv">
+      <h3>Login Form</h3>
+      <!--Login form begins-->
+      <form id="loginForm" action="/login" method="GET">
+        <div class="form-group">
+          <label for="usernameLogin">Username</label>
+          <input type="text" class="form-control authWidth" name="usernameLogin" id="usernameLogin" placeholder="Enter username" required>
+          <label for="pwdLogin">password</label>
+          <input type="password" class="form-control authWidth" name="pwdLogin" id="pwdLogin" placeholder="Enter password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Login</button>
+      </form>
+      <!--Login form ends-->
+    </div>
+    
+    <div id="followUserDiv" style="visibility: hidden;">
+      <h3>Follow User</h3>
+      <!--Follow user form begins-->
+      <form id="followUserForm" onSubmit="followUserAction()" method="POST">
+        <div class="form-group">
+          <label for="followUser">Username</label>
+          <input type="text" class="form-control" id="followUser" placeholder="Whom do you want to follow?" style="width: 50%;" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Follow</button>
+      </form>
+      <!--Follow user form ends-->
+    </div>
+
+    <div id="tweetDiv" style="visibility: hidden;">
+      <h3>Tweets</h3>
+      <!--Tweets form begins-->
+      <form id="tweetForm" onSubmit="tweetAction()" method="POST">
+        <div class="form-group">
+          <label for="tweet">Username</label>
+          <input type="text" class="form-control" id="tweet" placeholder="you may tweet" style="width: 50%;" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Tweet</button>
+      </form>
+      <!--Tweets form ends-->
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div id="newsFeedOuter" style="visibility: hidden;">
+      <h3>News Feed</h3>
+      <div id="newsFeedDiv" class="newsfeed-box"></div>
+    </div>
+    <br/>
+    <div id="reTweetDiv" style="visibility: hidden;">
+      <!--Re Tweets form begins-->
+      <form class="form-inline" onSubmit="retweetAction()" method="POST">
+        <div class="form-group">
+          <label for="retweet">Re-Tweet</label>
+          <input type="text" class="form-control" id="retweet"  placeholder="Enter the Tweet ID" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Re-Tweet</button>
+      </form>
+      <!--Re Tweets form ends-->
+    </div>
+    <br/>
+    <div id="queryDiv" style="visibility: hidden;">
+      <!--Query form begins-->
+      <form class="form-inline" onSubmit="queryAction()" method="POST">
+        <div class="form-group">
+          <label for="query">Query</label>
+          <input type="text" class="form-control" id="query" placeholder="hastag or mention" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Query</button>
+      </form>
+      <!--Query form ends-->
+    </div>
+    <div id="queryOuter" style="visibility: hidden;">
+      <h3>Query Results</h3>
+      <div id="queryResDiv" class="query-box"></div>
+    </div>
+  </div>
+</div>
+
+
+</body>
+</html>
